@@ -1,0 +1,22 @@
+Format-Specification: http://wiki.debian.org/Proposals/CopyrightFormat rev=102
+Debianized-By: AGOSTINI Yves <agostini@univ-metz.fr>
+Debianized-Date: Sun, 16 Jul 2008 10:37:58 +0200
+Original-Source-Location: http://search.cpan.org/dist/Mail-IMAPTalk/
+Upstream-Author: Rob Mueller <cpan@robm.fastmail.fm>
+
+Files: *
+Copyright: Copyright (C) 2003-2005 by FastMail IP Partners
+License: GPL-1+ | Artistic
+ This library is free software; you can redistribute it and/or modify it under
+ the same terms as Perl itself.
+
+Files: debian/*
+Copyright: 
+ Copyright 2008 Debian Perl Group <pkg-perl-maintainers@lists.alioth.debian.org>
+License: GPL-1+ | Artistic
+ The Debian packaging is put under the same terms as the module itself.
+
+Perl is distributed under your choice of the GNU General Public License or
+the Artistic License.  On Debian GNU/Linux systems, the complete text of the
+GNU General Public License can be found in `/usr/share/common-licenses/GPL'
+and the Artistic Licence in `/usr/share/common-licenses/Artistic'.
