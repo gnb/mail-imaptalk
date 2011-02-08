@@ -1,7 +1,10 @@
 #!/usr/bin/make -f
 
 UPSTREAM=   $(shell dpkg-parsechangelog | awk '/^Version:/{print $$2}')
-GITINFO=    +git$(shell git log --pretty='format:%ai.%h' HEAD^..HEAD |\
+GITINFO=    +git$(shell git log \
+		    --pretty='format:%ai.%h' \
+		    --no-merges \
+		    HEAD^..HEAD |\
 	      sed -e 's| [-+][0-9]\{4\}||' -e 's| |t|' -e 's|[-:]||g')
 MAJOR_REV=  1
 VENDOR=	    fastmail
