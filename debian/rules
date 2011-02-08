@@ -1,5 +1,13 @@
 #!/usr/bin/make -f
 
+UPSTREAM=   $(shell dpkg-parsechangelog | awk '/^Version:/{print $$2}')
+GITINFO=    +git$(shell git log --pretty='format:%ai.%h' HEAD^..HEAD |\
+	      sed -e 's| [-+][0-9]\{4\}||' -e 's| |t|' -e 's|[-:]||g')
+MAJOR_REV=  1
+VENDOR=	    fastmail
+MINOR_REV=  1
+VERSION=    $(UPSTREAM)$(GITINFO)-$(MAJOR_REV)$(VENDOR)$(MINOR_REV)
+
 build: build-stamp
 build-stamp:
 	dh build
@@ -16,7 +24,10 @@ install-stamp: build-stamp
 binary-arch:
 
 binary-indep: install
-	dh $@
+	dh_installdeb -i
+	dh_gencontrol -i -- -v"$(VERSION)"
+	dh_md5sums -i
+	dh_builddeb -i
 
 binary: binary-arch binary-indep
 
