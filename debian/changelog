@@ -1,0 +1,11 @@
+libmail-imaptalk-perl (1.04-1) unstable; urgency=low
+
+  * New upstream release, now on github
+
+ -- Greg Banks <gnb@fastmail.fm>  Tue,  8 Feb 2011 15:27:00 +1100
+
+libmail-imaptalk-perl (1.03-1) unstable; urgency=low
+
+  * Initial Release. (Closes: #491049)
+
+ -- AGOSTINI Yves <agostini@univ-metz.fr>  Wed, 16 Jul 2008 10:21:14 +0200
