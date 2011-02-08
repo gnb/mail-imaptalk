@@ -1,1 +1,6 @@
+Makefile
+blib
+install-stamp
+build-stamp
+pm_to_blib
 .shipit
