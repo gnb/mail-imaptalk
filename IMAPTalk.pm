@@ -125,6 +125,8 @@ use IO::Handle;
 use IO::Socket;
 use Digest;
 use Data::Dumper;
+use Encode;
+use Encode::IMAPUTF7;
 
 # Use Time::HiRes if available to handle select restarts
 eval 'use Time::HiRes qw(time);';
@@ -1074,18 +1076,11 @@ sub set_tracing {
 }
 
 sub set_unicode_folders {
-  my $Self = shift;
-  $Self->{Cache}->{UnicodeFolders} = shift;
-  if ($Self->{Cache}->{UnicodeFolders}) {
-    require Encode;
-    require Encode::IMAPUTF7;
-  }
+  # noop
 }
 
 sub unicode_folders {
-  my $Self = shift;
-  return 0 if ! $Self->{Cache};
-  return $Self->{Cache}->{UnicodeFolders} || 0;
+  return 1; # always
 }
 
 =back
@@ -3705,17 +3700,8 @@ is left alone.
 sub _fix_folder_name {
   my ($Self, $FolderName, $WildCard) = @_;
 
-  if ( $Self->unicode_folders()
-    && ( $FolderName =~ m{[^\x00-\x25\x27-\x7f]} ) )
-  {
-    $FolderName = Encode::encode( 'IMAP-UTF-7', $FolderName );
-  }
-
-  if (! $Self->unicode_folders() ) {
-    warn("Please report to rjlov");
-    Carp::cluck("Warning only: IMAPTalk not using unicode_folders");
-    warn("Please report to rjlov");
-  }
+  $FolderName = Encode::encode('IMAP-UTF-7', $FolderName)
+    if $FolderName =~ m{[^\x00-\x25\x27-\x7f]};
 
   return $FolderName if $WildCard && $FolderName =~ /[\*\%]/;
 
@@ -3749,18 +3735,9 @@ sub _unfix_folder_name {
   my $UFM = $Self->{UnrootFolderMatch};
   $FolderName =~ s/^$UFM// if $UFM;
 
-  if ( $Self->unicode_folders()
-    && ( $FolderName =~ m{&} ) )
-  {
-    $FolderName = Encode::decode( 'IMAP-UTF-7', $FolderName );
-  } 
+  $FolderName = Encode::decode('IMAP-UTF-7', $FolderName)
+     if $FolderName =~ m{&};
   
-  if (! $Self->unicode_folders() ) {
-    warn("Please report to rjlov");
-    Carp::cluck("Warning only: IMAPTalk not using unicode_folders");
-    warn("Please report to rjlov");
-  }
-
   return $FolderName;
 }
 
