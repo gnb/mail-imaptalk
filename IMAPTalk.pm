@@ -3634,16 +3634,20 @@ sub _quote {
 =item I<_quote_list(@Items)>
 
 For each item in @Items:
-1. If it's a string, quote as "..."
-2. If it's an array ref, place in (...) and quote each item.
+1. If it's undef, send NIL
+2. If it's a string, quote as "..."
+3. If it's an array ref, place in (...) and quote each item.
 
 Returns a list as long as @Items.
 
 =cut
 sub _quote_list {
   my @Items = @_;
+
   for (@Items) {
-    if (ref $_) {
+    if (not defined $_) {
+      $_ = \'NIL';
+    } elsif (ref $_) {
       $_ = '(' . join(' ', map { $$_ } _quote_list(@$_)) . ')';
     } else {
       # Replace " and \ with \" and \\ and surround with "..."
