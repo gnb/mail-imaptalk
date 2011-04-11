@@ -125,6 +125,8 @@ use IO::Handle;
 use IO::Socket;
 use Digest;
 use Data::Dumper;
+use Encode;
+use Encode::IMAPUTF7;
 
 # Use Time::HiRes if available to handle select restarts
 eval 'use Time::HiRes qw(time);';
@@ -1074,18 +1076,11 @@ sub set_tracing {
 }
 
 sub set_unicode_folders {
-  my $Self = shift;
-  $Self->{Cache}->{UnicodeFolders} = shift;
-  if ($Self->{Cache}->{UnicodeFolders}) {
-    require Encode;
-    require Encode::IMAPUTF7;
-  }
+  # noop
 }
 
 sub unicode_folders {
-  my $Self = shift;
-  return 0 if ! $Self->{Cache};
-  return $Self->{Cache}->{UnicodeFolders} || 0;
+  return 1; # always
 }
 
 =back
@@ -1623,6 +1618,54 @@ sub getannotation {
   return $Self->_imap_cmd("getannotation", 0, "", $Self->_fix_folder_name(+shift, 1), _quote_list(@_));
 }
 
+
+=item I<getmetadata($FolderName, [$Options], @Entries)>
+
+Perform the IMAP 'getmetadata' command to get the metadata items
+for a mailbox.  See RFC5464 for details.
+
+If $Options is passed, it is a hashref of options to set.
+
+If foldername is the empty string, gets server annotations
+
+Examples:
+
+  my $Result = $IMAP->getmetadata('user.joe.blah', {depth => 'infinity'}, '/shared') || die "IMAP error: $@";
+  $Result = {
+    'user.joe.blah' => {
+      '/shared/vendor/cmu/cyrus-imapd/size' => '19261',
+      '/shared/vendor/cmu/cyrus-imapd/lastupdate' => '26-Mar-2004 13:31:56 -0800',
+      '/shared/vendor/cmu/cyrus-imapd/partition' => 'default',
+    }
+  };
+
+  my $Result = $IMAP->getmetadata('', "/shared/comment");
+  $Result => {
+    '' => {
+      '/shared/comment' => "Shared comment",
+    }
+  };
+
+=cut
+sub getmetadata {
+  my $Self = shift;
+  my $foldername = shift;
+  my @Opts;
+  if ($_[0] and ref($_[0]) eq 'HASH') {
+    my $val = shift;
+    push @Opts, "(" . join (' ', %$val) . ")";
+  }
+  my $folderspec = ($foldername eq '') ? '' : $Self->_fix_folder_name($foldername, 1);
+  $Self->_require_capability('metadata') || return undef;
+
+  # it's possible to have no responses if we didn't match anything
+  $Self->{Responses}->{metadata} = undef;
+  my $res = $Self->_imap_cmd("getmetadata", 0, "", $folderspec, @Opts, _quote_list(@_));
+  my $NoData = !ref($res) && $res && $Self->{LastRespCode} =~ /^ok/i;
+  return {} if $NoData;
+  return $res;
+}
+
 =item I<setannotation($FolderName, $Entry, $Attribute, [ $Entry, $Attribute ], ... )>
 
 Perform the IMAP 'setannotation' command to get the annotation(s)
@@ -1638,6 +1681,22 @@ sub setannotation {
   my $Self = shift;
   $Self->_require_capability('annotatemore') || return undef;
   return $Self->_imap_cmd("setannotation", 0, "", $Self->_fix_folder_name(+shift, 1), _quote_list(@_));
+}
+
+=item I<setmetadata($FolderName, $Name, $Value, $Name2, $Value2)>
+
+Perform the IMAP 'setmetadata' command.  See RFC 5464 for details.
+
+Examples:
+
+  my $Result = $IMAP->setmetadata('user.joe.blah', '/comment', 'A comment')
+    || die "IMAP error: $@";
+
+=cut
+sub setmetadata {
+  my $Self = shift;
+  $Self->_require_capability('metadata') || return undef;
+  return $Self->_imap_cmd("setmetadata", 0, "", $Self->_fix_folder_name(+shift, 1), _quote_list([@_]));
 }
 
 =item I<multigetannotation($Entry, $Attribute, @FolderNames)>
@@ -3088,6 +3147,12 @@ sub _parse_response {
       $DataResp = {} if ref($DataResp) ne 'HASH';
       $DataResp->{$Name}->{$Entry} = { @{$Attributes || []} };
 
+    } elsif ($Res1 eq 'metadata') {
+      my ($Name, $Bits) = @{$Self->_remaining_atoms()};
+      $Name = $Self->_unfix_folder_name($Name);
+      $DataResp = {} if ref($DataResp) ne 'HASH';
+      $DataResp->{$Name}->{$Bits->[0]} = $Bits->[1];
+
     } elsif (($Res1 eq 'bye') && ($Self->{LastCmd} ne 'logout')) {
       die "IMAPTalk: Connection was unexpectedly closed by host";
 
@@ -3639,16 +3704,20 @@ sub _quote {
 =item I<_quote_list(@Items)>
 
 For each item in @Items:
-1. If it's a string, quote as "..."
-2. If it's an array ref, place in (...) and quote each item.
+1. If it's undef, send NIL
+2. If it's a string, quote as "..."
+3. If it's an array ref, place in (...) and quote each item.
 
 Returns a list as long as @Items.
 
 =cut
 sub _quote_list {
   my @Items = @_;
+
   for (@Items) {
-    if (ref $_) {
+    if (not defined $_) {
+      $_ = \'NIL';
+    } elsif (ref $_) {
       $_ = '(' . join(' ', map { $$_ } _quote_list(@$_)) . ')';
     } else {
       # Replace " and \ with \" and \\ and surround with "..."
@@ -3705,17 +3774,8 @@ is left alone.
 sub _fix_folder_name {
   my ($Self, $FolderName, $WildCard) = @_;
 
-  if ( $Self->unicode_folders()
-    && ( $FolderName =~ m{[^\x00-\x25\x27-\x7f]} ) )
-  {
-    $FolderName = Encode::encode( 'IMAP-UTF-7', $FolderName );
-  }
-
-  if (! $Self->unicode_folders() ) {
-    warn("Please report to rjlov");
-    Carp::cluck("Warning only: IMAPTalk not using unicode_folders");
-    warn("Please report to rjlov");
-  }
+  $FolderName = Encode::encode('IMAP-UTF-7', $FolderName)
+    if $FolderName =~ m{[^\x00-\x25\x27-\x7f]};
 
   return $FolderName if $WildCard && $FolderName =~ /[\*\%]/;
 
@@ -3749,18 +3809,9 @@ sub _unfix_folder_name {
   my $UFM = $Self->{UnrootFolderMatch};
   $FolderName =~ s/^$UFM// if $UFM;
 
-  if ( $Self->unicode_folders()
-    && ( $FolderName =~ m{&} ) )
-  {
-    $FolderName = Encode::decode( 'IMAP-UTF-7', $FolderName );
-  } 
+  $FolderName = Encode::decode('IMAP-UTF-7', $FolderName)
+     if $FolderName =~ m{&};
   
-  if (! $Self->unicode_folders() ) {
-    warn("Please report to rjlov");
-    Carp::cluck("Warning only: IMAPTalk not using unicode_folders");
-    warn("Please report to rjlov");
-  }
-
   return $FolderName;
 }
 
